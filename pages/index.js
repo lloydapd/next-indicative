@@ -1,8 +1,80 @@
+import { useState, useEffect, useCallback } from 'react'
 import Head from 'next/head'
 import Image from 'next/image'
 import styles from '../styles/Home.module.css'
+import { useValidate, useValidateAll, useStateValidator } from 'react-indicative-hooks'
+import { Box, Text, Input, Button } from '@chakra-ui/react'
+import { create, urlSource } from 'ipfs-http-client'
 
-export default function Home() {
+const rules = {
+  name: "required",
+  email: "required|email"
+}
+
+const messages = {
+  "name.required": "Please, fill the name input with some data",
+  "email.email": "You need to enter a valid email"
+}
+
+export function getStaticProps() {
+  return {
+    props: {
+      time: new Date().toISOString(),
+    },
+    revalidate: 1
+  };
+}
+
+export default function Home({ time }) {
+  const [name, setName] = useState("")
+  const [email, setEmail] = useState("")
+  const [show, setShow] = useState(false)
+  const [value, setValue, error] = useStateValidator("", rules, messages)
+  const [imageUrl, updateImageUrl] = useState(``)
+  const [videoUrl, updateVideoUrl] = useState(``)
+  const [loading, isLoading] = useState(false)
+  const [items, setItems] = useState([])
+
+  const options = {
+    messages,
+    onSuccess: useCallback(() => setShow(false), []),
+    onError: useCallback(() => setShow(true), [])
+  }
+
+  const revalidate = () => {
+    fetch('./api/revalidate')
+  }
+
+  const errors = useValidateAll({ name, email }, rules, options)
+
+  const client = create("https://ipfs.infura.io:5001/api/v0")
+
+  async function uploadVideo(e) {
+    isLoading(true)
+    const file = e.target.files[0]
+    try {
+      const added = await client.add(file)
+      const url = `https://ipfs.infura.io/ipfs/${added.path}`
+      isLoading(false)
+      updateVideoUrl(url)
+    } catch (error) {
+      console.log('Error uploading file: ', error)
+    }
+  }
+
+  async function uploadImage(e) {
+    isLoading(true)
+    const file = e.target.files[0]
+    try {
+      const added = await client.add(file)
+      const url = `https://ipfs.infura.io/ipfs/${added.path}`
+      isLoading(false)
+      updateImageUrl(url)
+    } catch (error) {
+      console.log('Error uploading file: ', error)
+    }
+  }
+
   return (
     <div className={styles.container}>
       <Head>
@@ -12,58 +84,65 @@ export default function Home() {
       </Head>
 
       <main className={styles.main}>
-        <h1 className={styles.title}>
-          Welcome to <a href="https://nextjs.org">Next.js!</a>
-        </h1>
-
-        <p className={styles.description}>
-          Get started by editing{' '}
-          <code className={styles.code}>pages/index.js</code>
+        <Text>{time}</Text>
+        <p className="text-red mb-5" data-testid="alert">
+        {show && "Sorry, you have an error"}
         </p>
-
-        <div className={styles.grid}>
-          <a href="https://nextjs.org/docs" className={styles.card}>
-            <h2>Documentation &rarr;</h2>
-            <p>Find in-depth information about Next.js features and API.</p>
-          </a>
-
-          <a href="https://nextjs.org/learn" className={styles.card}>
-            <h2>Learn &rarr;</h2>
-            <p>Learn about Next.js in an interactive course with quizzes!</p>
-          </a>
-
-          <a
-            href="https://github.com/vercel/next.js/tree/canary/examples"
-            className={styles.card}
-          >
-            <h2>Examples &rarr;</h2>
-            <p>Discover and deploy boilerplate example Next.js projects.</p>
-          </a>
-
-          <a
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-            className={styles.card}
-          >
-            <h2>Deploy &rarr;</h2>
-            <p>
-              Instantly deploy your Next.js site to a public URL with Vercel.
-            </p>
-          </a>
+        Name
+        <Input
+          placeholder="Name"
+          value={name}
+          onChange={e => setName(e.target.value)}
+          data-testid="name"
+          className="ml-2 mr-5 mb-5"
+        />
+        Email
+        <Input
+          placeholder="Email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          data-testid="email"
+          className="ml-2 mr-5 mb-5"
+        />
+        Value
+        <Input
+          placeholder="Value"
+          value={value}
+          onChange={e => setValue(e.target.value)}
+          data-testid="input"
+          className="ml-2 mr-5 mb-5"
+          />
+        <p className="text-red" data-testid="error">
+          {errors && errors.map(error => error.message).join(", ")}
+        </p>
+        <div>
+          <h1>Video</h1>
+          <input
+            type="file"
+            onChange={uploadVideo}
+          />
+          {loading ? <Text>Loading</Text> : null}
+          {
+            videoUrl && (
+              <video src={videoUrl} width="600px" />
+            )
+          }
         </div>
+        <div>
+          <h1>Image</h1>
+          <input
+            type="file"
+            onChange={uploadImage}
+          />
+          {loading ? <Text>Loading</Text> : null}
+          {
+            imageUrl && (
+              <img src={imageUrl} width="600px" />
+            )
+          }
+        </div>
+        <button type="submit" onClick={revalidate}>revalidate</button>
       </main>
-
-      <footer className={styles.footer}>
-        <a
-          href="https://vercel.com?utm_source=create-next-app&utm_medium=default-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Powered by{' '}
-          <span className={styles.logo}>
-            <Image src="/vercel.svg" alt="Vercel Logo" width={72} height={16} />
-          </span>
-        </a>
-      </footer>
     </div>
   )
 }
